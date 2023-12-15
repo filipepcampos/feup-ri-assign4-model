@@ -1,0 +1,20 @@
+path: ../datasets/duckietown # dataset root dir
+train: train/images  # train images (relative to 'path') 128 images
+val: valid/images  # val images (relative to 'path') 128 images
+test:  # test images (optional)
+
+# Classes
+names:
+  0: apriltag
+  1: duckie
+  2: duckiebot
+  3: tree
+
+# Download script/URL (optional)
+download: |
+  from utils.general import download, Path
+
+  # Download
+  dir = Path(yaml['path'])  # dataset root dir
+  urls = ['https://universe.roboflow.com/ds/KQ9OSkGwq4?key=nJKVdxW3UM']
+  download(urls, dir=dir)  # dataset root dir
