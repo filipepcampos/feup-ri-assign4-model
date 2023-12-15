@@ -18,3 +18,12 @@ download: |
   dir = Path(yaml['path'])  # dataset root dir
   urls = ['https://universe.roboflow.com/ds/KQ9OSkGwq4?key=nJKVdxW3UM']
   download(urls, dir=dir)  # dataset root dir
+
+  # Add two classes to the YAML
+  for split in ['train', 'valid']:
+      for file in (dir / split / 'labels').glob('*.txt'):
+          x = file.read_text().splitlines()
+          for i, line in enumerate(x):
+              class_id = line.split()[0]
+              x[i] = line + ' 0 0'
+          file.write_text('\n'.join(x))
