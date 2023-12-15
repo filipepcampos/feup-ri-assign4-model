@@ -105,6 +105,16 @@ class Segment(Detect):
         x = self.detect(self, x)
         return (x, p) if self.training else (x[0], p) if self.export else (x[0], p, x[1])
 
+class DetectWithDistanceAndRotation(Detect):
+
+    def __init__(self, nc=80, anchors=(), ch=(), inplace=True, noc=5, nov=2):  # detection layer
+        self.noc = noc # number of ordinal classes
+        self.nov = nov # number of ordinal variables
+        n_extra_classes = noc * nov
+        super().__init__(nc=nc+n_extra_classes, anchors=anchors, ch=ch, inplace=inplace)
+
+    def forward(self, x):
+        return super().forward(x)
 
 class BaseModel(nn.Module):
     # YOLOv5 base model
@@ -188,7 +198,7 @@ class DetectionModel(BaseModel):
 
         # Build strides, anchors
         m = self.model[-1]  # Detect()
-        if isinstance(m, (Detect, Segment)):
+        if isinstance(m, (Detect, DetectWithDistanceAndRotation, Segment)):
             s = 256  # 2x min stride
             m.inplace = self.inplace
             forward = lambda x: self.forward(x)[0] if isinstance(m, Segment) else self.forward(x)
@@ -330,7 +340,7 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
         elif m is Concat:
             c2 = sum(ch[x] for x in f)
         # TODO: channel, gw, gd
-        elif m in {Detect, Segment}:
+        elif m in {Detect, Segment, DetectWithDistanceAndRotation}:
             args.append([ch[x] for x in f])
             if isinstance(args[1], int):  # number of anchors
                 args[1] = [list(range(args[1] * 2))] * len(f)
