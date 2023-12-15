@@ -15,7 +15,6 @@ class ComputeLoss:
     def __init__(self, model, autobalance=False):
         device = next(model.parameters()).device  # get model device
         h = model.hyp  # hyperparameters
-        print("Debug:", h)
 
         # Define criteria
         BCEcls = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([h['cls_pw']], device=device))
@@ -49,7 +48,7 @@ class ComputeLoss:
         lobj = torch.zeros(1, device=self.device)  # object loss
         ldistance = torch.zeros(1, device=self.device)  # distance loss
         lrotation = torch.zeros(1, device=self.device)  # rotation loss
-        tcls, tbox, indices, anchors = self.build_targets(p, targets[:, :6])  # targets
+        tcls, tbox, tdistance, trotation, indices, anchors = self.build_targets(p, targets)  # targets
 
         # Losses
         for i, pi in enumerate(p):  # layer index, layer predictions
@@ -89,10 +88,8 @@ class ComputeLoss:
                     t[range(n), tcls[i]] = self.cp
                     lcls += self.BCEcls(pcls, t)  # BCE
 
-                    print(pcls.shape)
-                    print(pdistance.shape, targets[i].to(torch.int64).shape)
-                    ldistance += self.CLLdistance(pdistance, targets[:,-2].to(torch.int64))
-                    # lrotation += self.CLLrotation(protation, targets[:,-1])
+                    ldistance += self.CLLdistance(pdistance, tdistance[i].unsqueeze(-1).to(torch.int64))
+                    lrotation += self.CLLrotation(protation, trotation[i].unsqueeze(-1).to(torch.int64))
 
                 # Append targets to text file
                 # with open('targets.txt', 'a') as file:
@@ -110,13 +107,14 @@ class ComputeLoss:
         lcls *= self.hyp['cls']
         bs = tobj.shape[0]  # batch size
 
-        return (lbox + lobj + lcls) * bs, torch.cat((lbox, lobj, lcls)).detach()
+        # TODO: Adjust weights
+        return (lbox + lobj + lcls + ldistance*0.05 + lrotation*0.05) * bs, torch.cat((lbox, lobj, lcls, ldistance, lrotation)).detach()
 
     def build_targets(self, p, targets):
         # Build targets for compute_loss(), input targets(image,class,x,y,w,h)
         na, nt = self.na, targets.shape[0]  # number of anchors, targets
-        tcls, tbox, tdistance, indices, anch = [], [], [], [], []
-        gain = torch.ones(7, device=self.device)  # normalized to gridspace gain
+        tcls, tbox, tdistance, trotation, indices, anch = [], [], [], [], [], []
+        gain = torch.ones(9, device=self.device)  # normalized to gridspace gain
         ai = torch.arange(na, device=self.device).float().view(na, 1).repeat(1, nt)  # same as .repeat_interleave(nt)
         targets = torch.cat((targets.repeat(na, 1, 1), ai[..., None]), 2)  # append anchor indices
 
@@ -158,8 +156,14 @@ class ComputeLoss:
                 offsets = 0
 
             # Define
-            bc, gxy, gwh, a = t.chunk(4, 1)  # (image, class), grid xy, grid wh, anchors
+            bc = t[:, :2]
+            gxy = t[:, 2:4]
+            gwh = t[:, 4:6]
+            a = t[:,6]
+            dist = t[:,7]
+            rot = t[:, 8]
             a, (b, c) = a.long().view(-1), bc.long().T  # anchors, image, class
+
             gij = (gxy - offsets).long()
             gi, gj = gij.T  # grid indices
 
@@ -168,8 +172,10 @@ class ComputeLoss:
             tbox.append(torch.cat((gxy - gij, gwh), 1))  # box
             anch.append(anchors[a])  # anchors
             tcls.append(c)  # class
+            tdistance.append(dist)  # distance class
+            trotation.append(rot)   # rotation class
 
-        return tcls, tbox, indices, anch
+        return tcls, tbox, tdistance, trotation, indices, anch
 
 ###########################################################################################
 ## Based on https://github.com/EthanRosenthal/spacecutter/blob/master/spacecutter/losses.py
