@@ -118,16 +118,6 @@ def plot_images(images, targets, paths=None, fname='images.jpg', names=None):
         images = images.cpu().float().numpy()
     if isinstance(targets, torch.Tensor):
         targets = targets.cpu().numpy()
-    
-    # TODO: Remove this
-    # if str(fname).endswith("labels.jpg"):
-    #     print("---------TARGETS----------")
-    #     print(targets)
-    #     print(targets.shape)
-    # else:
-    #     print("---------PREDS----------")
-    #     print(targets)
-    #     print(targets.shape)
 
     max_size = 1920  # max image size
     max_subplots = 16  # max image subplots, i.e. 4x4
