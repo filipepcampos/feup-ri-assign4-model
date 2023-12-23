@@ -15,6 +15,7 @@ class ComputeLoss:
     def __init__(self, model, autobalance=False):
         device = next(model.parameters()).device  # get model device
         h = model.hyp  # hyperparameters
+        print(h)
 
         # Define criteria
         BCEcls = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([h['cls_pw']], device=device))
@@ -105,10 +106,12 @@ class ComputeLoss:
         lbox *= self.hyp['box']
         lobj *= self.hyp['obj']
         lcls *= self.hyp['cls']
+        ldistance *= self.hyp['dist']
+        lrotation *= self.hyp['rot']
         bs = tobj.shape[0]  # batch size
 
         # TODO: Adjust weights
-        return (lbox + lobj + lcls + ldistance*0.05 + lrotation*0.05) * bs, torch.cat((lbox, lobj, lcls, ldistance, lrotation)).detach()
+        return (lbox + lobj + lcls + ldistance + lrotation) * bs, torch.cat((lbox, lobj, lcls, ldistance, lrotation)).detach()
 
     def build_targets(self, p, targets):
         # Build targets for compute_loss(), input targets(image,class,x,y,w,h)
@@ -159,9 +162,9 @@ class ComputeLoss:
             bc = t[:, :2]
             gxy = t[:, 2:4]
             gwh = t[:, 4:6]
-            a = t[:,6]
-            dist = t[:,7]
-            rot = t[:, 8]
+            a = t[:,8]
+            dist = t[:,6]
+            rot = t[:, 7]
             a, (b, c) = a.long().view(-1), bc.long().T  # anchors, image, class
 
             gij = (gxy - offsets).long()

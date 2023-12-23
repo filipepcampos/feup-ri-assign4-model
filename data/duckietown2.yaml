@@ -1,0 +1,9 @@
+path: ../datasets/duckietown2_processed # dataset root dir
+train: train/images
+val: valid/images
+test:  # test images (optional)
+
+# Classes
+names:
+  0: duckie
+  1: duckiebot
