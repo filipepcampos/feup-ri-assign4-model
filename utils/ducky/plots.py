@@ -47,9 +47,23 @@ class Colors:
     def hex2rgb(h):  # rgb order (PIL)
         return tuple(int(h[1 + i:1 + i + 2], 16) for i in (0, 2, 4))
 
+class CustomColors:
+    def __init__(self):
+        # hex = matplotlib.colors.TABLEAU_COLORS.values()
+        hexs = ('0000FF', 'FF0000', '006100', 'FFB21D', 'CFD231', '48F90A', '92CC17', '3DDB86', '1A9334', '00D4BB',
+                '2C99A8', '00C2FF', '344593', '6473FF', '0018EC', '8438FF', '520085', 'CB38FF', 'FF95C8', 'FF37C7')
+        self.palette = [self.hex2rgb(f'#{c}') for c in hexs]
+        self.n = len(self.palette)
 
-colors = Colors()  # create instance for 'from utils.plots import colors'
+    def __call__(self, i, bgr=False):
+        c = self.palette[int(i) % self.n]
+        return (c[2], c[1], c[0]) if bgr else c
 
+    @staticmethod
+    def hex2rgb(h):  # rgb order (PIL)
+        return tuple(int(h[1 + i:1 + i + 2], 16) for i in (0, 2, 4))
+
+colors = CustomColors()  # create instance for 'from utils.plots import colors'
 
 def feature_visualization(x, module_type, stage, n=32, save_dir=Path('runs/detect/exp')):
     """
@@ -185,10 +199,10 @@ def plot_lr_scheduler(optimizer, scheduler, epochs=300, save_dir=''):
     for _ in range(epochs):
         scheduler.step()
         y.append(optimizer.param_groups[0]['lr'])
-    plt.plot(y, '.-', label='LR')
-    plt.xlabel('epoch')
-    plt.ylabel('LR')
-    plt.grid()
+    plt.plot(y, '.-', label=r'$\text{LR}')
+    plt.xlabel(r'$\text{Epoch}$')
+    plt.ylabel(r'$\text{LR}$')
+    plt.grid(linestyle='dotted')
     plt.xlim(0, epochs)
     plt.ylim(0)
     plt.savefig(Path(save_dir) / 'LR.png', dpi=200)
@@ -387,8 +401,9 @@ def plot_results(file='path/to/results.csv', dir=''):
             for i, j in enumerate([1, 2, 3, 4, 5, 8, 9, 10, 6, 7]):
                 y = data.values[:, j].astype('float')
                 # y[y == 0] = np.nan  # don't show zero values
-                ax[i].plot(x, y, marker='.', label=f.stem, linewidth=2, markersize=8)  # actual results
-                ax[i].plot(x, gaussian_filter1d(y, sigma=3), ':', label='smooth', linewidth=2)  # smoothing line
+                label1 = r'$\text{' + f.stem + r'}$'
+                ax[i].plot(x, y, marker='.', label=label1, linewidth=2, markersize=8)  # actual results
+                ax[i].plot(x, gaussian_filter1d(y, sigma=3), ':', label=r'$\text{smooth}$', linewidth=2)  # smoothing line
                 ax[i].set_title(s[j], fontsize=12)
                 # if j in [8, 9, 10]:  # share train and val loss y axes
                 #     ax[i].get_shared_y_axes().join(ax[i], ax[i - 5])
