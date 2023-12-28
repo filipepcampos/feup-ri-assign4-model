@@ -77,7 +77,8 @@ def split_valid(input_dir, output_dir, valid_ratio=0.2):
         output_file_path = os.path.join(output_imgs, file_name)
         os.system(f"mv {file_path} {output_file_path}")
 
-        file_path = os.path.join(input_labels, file_name).replace(".png", ".txt")
+        file_name = file_name.replace(".png", ".txt")
+        file_path = os.path.join(input_labels, file_name)
         output_file_path = os.path.join(output_labels, file_name)
         os.system(f"mv {file_path} {output_file_path}")
 

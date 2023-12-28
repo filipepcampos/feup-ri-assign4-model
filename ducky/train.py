@@ -98,7 +98,24 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
     # Loggers
     data_dict = None
     if RANK in {-1, 0}:
-        loggers = Loggers(save_dir, weights, opt, hyp, LOGGER)  # loggers instance
+        loggers = Loggers(save_dir, weights, opt, hyp, LOGGER, keys = [
+            'train/box_loss',
+            'train/obj_loss',
+            'train/cls_loss',  
+            'train/dist_loss',
+            'train/rot_loss', # train loss
+            'metrics/precision',
+            'metrics/recall',
+            'metrics/mAP_0.5',
+            'metrics/mAP_0.5:0.95',  # metrics
+            'val/box_loss',
+            'val/obj_loss',
+            'val/cls_loss',
+            'val/dist_loss',
+            'val/rot_loss',  # val loss
+            'x/lr0',
+            'x/lr1',
+            'x/lr2'])  # params
 
         # Register actions
         for k in methods(loggers):
@@ -374,8 +391,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
             if fi > best_fitness:
                 best_fitness = fi
             log_vals = list(mloss) + list(results) + lr
-            # TODO: Reactivate
-            # callbacks.run('on_fit_epoch_end', log_vals, epoch, best_fitness, fi)
+            callbacks.run('on_fit_epoch_end', log_vals, epoch, best_fitness, fi)
 
             # Save model
             if (not nosave) or (final_epoch and not evolve):  # if save
