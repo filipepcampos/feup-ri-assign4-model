@@ -3,24 +3,27 @@ import math
 import random
 
 def get_distance_class(distance: float):
-    if distance < 0.1:
+    if distance < 0.25:
         return 0
-    elif distance < 0.5:
+    elif distance < 0.35:
         return 1
-    elif distance < 1:
+    elif distance < 0.45:
         return 2
-    elif distance < 2:
+    elif distance < 0.55:
         return 3
     return 4
 
+def deg_to_rad(deg: float):
+    return deg * math.pi / 180.0
+
 def get_angle_class(angle: float): # TODO: This is not correct
-    if angle < -0.5:
+    if angle < -deg_to_rad(70):
         return 0
-    elif angle < -0.1:
+    if angle < -deg_to_rad(25):
         return 1
-    elif angle < 0.1:
+    if angle < deg_to_rad(25):
         return 2
-    elif angle < 0.5:
+    if angle < deg_to_rad(70):
         return 3
     return 4
 
