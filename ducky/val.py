@@ -229,7 +229,6 @@ def run(
                                         multi_label=True,
                                         agnostic=single_cls,
                                         max_det=max_det)
-            print("PREDICTIONS", preds[0].shape)
 
         # Metrics
         for si, pred in enumerate(preds):
