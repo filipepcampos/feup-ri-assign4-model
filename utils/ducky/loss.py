@@ -24,10 +24,10 @@ class ComputeLoss:
 
         # CLLdistance = CumulativeLinkLoss() # TODO: Idk if this goes to correct device
         # CLLrotation = CumulativeLinkLoss()
-        # CLLdistance = nn.CrossEntropyLoss()
-        # CLLrotation = nn.CrossEntropyLoss()
-        CLLdistance = UnimodalNet(K=5) # TODO: Idk if this goes to correct device
-        CLLrotation = UnimodalNet(K=5)
+        CLLdistance = nn.BCELoss()
+        CLLrotation = nn.BCELoss()
+        # CLLdistance = UnimodalNet(K=5) # TODO: Idk if this goes to correct device
+        # CLLrotation = UnimodalNet(K=5)
         # CLLdistance = CDW_CE(K=5) # TODO: Idk if this goes to correct device
         # CLLrotation = CDW_CE(K=5)
 

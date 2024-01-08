@@ -31,14 +31,14 @@ import torch
 from tqdm import tqdm
 
 FILE = Path(__file__).resolve()
-ROOT = FILE.parents[0]  # YOLOv5 root directory
+ROOT = FILE.parents[1]  # YOLOv5 root directory
 if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))  # add ROOT to PATH
 ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
 
 from models.common import DetectMultiBackend
 from utils.callbacks import Callbacks
-from utils.dataloaders import create_dataloader
+from utils.ducky.dataloaders import create_dataloader
 from utils.general import (LOGGER, TQDM_BAR_FORMAT, Profile, check_dataset, check_img_size, check_requirements,
                            check_yaml, coco80_to_coco91_class, colorstr, increment_path,
                            print_args, scale_boxes, xywh2xyxy, xyxy2xywh)
@@ -196,7 +196,7 @@ def run(
     tp, fp, p, r, f1, mp, mr, map50, ap50, map = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
     dt = Profile(), Profile(), Profile()  # profiling times
     loss = torch.zeros(5, device=device)
-    jdict, stats, ap, ap_class = [], [], [], []
+    jdict, stats, ap, ap_class, stats_dist, stats_rot = [], [], [], [], [], []
     callbacks.run('on_val_start')
     pbar = tqdm(dataloader, desc=s, bar_format=TQDM_BAR_FORMAT)  # progress bar
     for batch_i, (im, targets, paths, shapes) in enumerate(pbar):
@@ -229,18 +229,25 @@ def run(
                                         multi_label=True,
                                         agnostic=single_cls,
                                         max_det=max_det)
+            print("PREDICTIONS", preds[0].shape)
 
         # Metrics
         for si, pred in enumerate(preds):
             labels = targets[targets[:, 0] == si, 1:]
+
             nl, npr = labels.shape[0], pred.shape[0]  # number of labels, predictions
+
             path, shape = Path(paths[si]), shapes[si][0]
             correct = torch.zeros(npr, niou, dtype=torch.bool, device=device)  # init
+            correct_dist = torch.zeros(npr, niou, dtype=torch.bool, device=device)
+            correct_rot = torch.zeros(npr, niou, dtype=torch.bool, device=device)
             seen += 1
 
             if npr == 0:
                 if nl:
                     stats.append((correct, *torch.zeros((2, 0), device=device), labels[:, 0]))
+                    stats.append((correct_dist, *torch.zeros((2, 0), device=device), labels[:, 0]))
+                    stats.append((correct_rot, *torch.zeros((2, 0), device=device), labels[:, 0]))
                     if plots:
                         confusion_matrix.process_batch(detections=None, labels=labels[:, 0])
                 continue
@@ -255,14 +262,24 @@ def run(
             if nl:
                 tbox = xywh2xyxy(labels[:, 1:5])  # target boxes
                 scale_boxes(im[si].shape[1:], tbox, shape, shapes[si][1])  # native-space labels
+
+
                 labelsn = torch.cat((labels[:, 0:1], tbox), 1)  # native-space labels
+                labelsn_dist = torch.cat((labels[:, 5:6], tbox), 1)  # native-space labels
+                labelsn_rot = torch.cat((labels[:, 6:7], tbox), 1)  # native-space labels
+
                 correct = process_batch(predn, labelsn, iouv)
+                correct_dist = process_batch(predn, labelsn_dist, iouv)
+                correct_rot = process_batch(predn, labelsn_rot, iouv)
                 if plots: # TODO: Reactivate
                     pass
                     # print(predn, predn.shape)
                     # print(labelsn, labelsn.shape)
                     # confusion_matrix.process_batch(predn, labelsn)
+                
             stats.append((correct, pred[:, 4], pred[:, 5], labels[:, 0]))  # (correct, conf, pcls, tcls)
+            stats_dist.append((correct_dist, pred[:, 4], pred[:, 6], labels[:, 5]))  # (correct, conf, pcls, tcls)
+            stats_rot.append((correct_rot, pred[:, 4], pred[:, 7], labels[:, 6]))  # (correct, conf, pcls, tcls)
 
             # Save/log
             if save_txt:
@@ -278,7 +295,50 @@ def run(
 
         callbacks.run('on_val_batch_end', batch_i, im, targets, paths, shapes, preds)
 
+
+    print("======== DISTANCE ========")
+    stats_dist = [torch.cat(x, 0).cpu().numpy() for x in zip(*stats_dist)]  # to numpy
+    if len(stats_dist) and stats_dist[0].any():
+        tp, fp, p, r, f1, ap, ap_class = ap_per_class(*stats_dist, plot=False, save_dir=save_dir, names=names)
+        ap50, ap = ap[:, 0], ap.mean(1)  # AP@0.5, AP@0.5:0.95
+        mp, mr, map50, map = p.mean(), r.mean(), ap50.mean(), ap.mean()
+    nt = np.bincount(stats_dist[3].astype(int), minlength=nc)  # number of targets per class
+
+    # Print results
+    pf = '%22s' + '%11i' * 2 + '%11.3g' * 4  # print format
+    LOGGER.info(pf % ('all', seen, nt.sum(), mp, mr, map50, map))
+    if nt.sum() == 0:
+        LOGGER.warning(f'WARNING ⚠️ no labels found in {task} set, can not compute metrics without labels')
+    
+    # Print results per class
+    dist_names = ["VC", "C", "M", "F", "VF"]
+    if (verbose or (nc < 50 and not training)) and nc > 1 and len(stats):
+        for i, c in enumerate(ap_class):
+            LOGGER.info(pf % (dist_names[c], seen, nt[c], p[i], r[i], ap50[i], ap[i]))
+
+
+    print("======== ROTATION ========")
+    stats_rot = [torch.cat(x, 0).cpu().numpy() for x in zip(*stats_rot)]  # to numpy
+    if len(stats_rot) and stats_rot[0].any():
+        tp, fp, p, r, f1, ap, ap_class = ap_per_class(*stats_rot, plot=False, save_dir=save_dir, names=names)
+        ap50, ap = ap[:, 0], ap.mean(1)
+        mp, mr, map50, map = p.mean(), r.mean(), ap50.mean(), ap.mean()
+    nt = np.bincount(stats_rot[3].astype(int), minlength=nc)  # number of targets per class
+
+    # Print results
+    pf = '%22s' + '%11i' * 2 + '%11.3g' * 4  # print format
+    LOGGER.info(pf % ('all', seen, nt.sum(), mp, mr, map50, map))
+    if nt.sum() == 0:
+        LOGGER.warning(f'WARNING ⚠️ no labels found in {task} set, can not compute metrics without labels')
+
+    # Print results per class
+    rot_names = ["VL", "L", "N", "R", "VR"]
+    if (verbose or (nc < 50 and not training)) and nc > 1 and len(stats):
+        for i, c in enumerate(ap_class):
+            LOGGER.info(pf % (rot_names[c], seen, nt[c], p[i], r[i], ap50[i], ap[i]))
+
     # Compute metrics
+    print("======== CLASS ========")
     stats = [torch.cat(x, 0).cpu().numpy() for x in zip(*stats)]  # to numpy
     if len(stats) and stats[0].any():
         tp, fp, p, r, f1, ap, ap_class = ap_per_class(*stats, plot=plots, save_dir=save_dir, names=names)

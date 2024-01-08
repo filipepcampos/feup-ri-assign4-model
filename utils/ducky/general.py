@@ -908,9 +908,10 @@ def non_max_suppression(
 
     t = time.time()
     mi = 5 + nc  # mask start index
-    output = [torch.zeros((0, 6 + nm), device=prediction.device)] * bs
+    output = [torch.zeros((0, 6 + nm + 2), device=prediction.device)] * bs
 
     for xi, x in enumerate(prediction):  # image index, image inference
+        original_x = x.clone()
         # Apply constraints
         # x[((x[..., 2:4] < min_wh) | (x[..., 2:4] > max_wh)).any(1), 4] = 0  # width-height
         x = x[xc[xi]]  # confidence
@@ -935,10 +936,13 @@ def non_max_suppression(
         box = xywh2xyxy(x[:, :4])  # center_x, center_y, width, height) to (x1, y1, x2, y2)
         mask = x[:, mi+100:]  # zero columns if no masks TODO: weird hack
 
+
         # Detections matrix nx6 (xyxy, conf, cls)
         if multi_label:
-            i, j = (x[:, 5:mi] > conf_thres).nonzero(as_tuple=False).T
+            i, j = (x[:, 5:mi-10] > conf_thres).nonzero(as_tuple=False).T
             x = torch.cat((box[i], x[i, 5 + j, None], j[:, None].float(), mask[i]), 1)
+            x = torch.column_stack((x, torch.argmax(original_x[i, 7:12], dim=1), torch.argmax(original_x[i, 12:17], dim=1)))
+            
         else:  # best class only
             conf, j = x[:, 5:mi].max(1, keepdim=True)
             x = torch.cat((box, conf, j.float(), mask), 1)[conf.view(-1) > conf_thres]
